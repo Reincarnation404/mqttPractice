@@ -80,7 +80,9 @@ public class mqttHelper {
         mqttConnectOptions.setUserName(username);
         mqttConnectOptions.setPassword(password.toCharArray());
 
+
         try {
+
             mqttAndroidClient.connect(mqttConnectOptions, null, new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
@@ -184,6 +186,7 @@ public class mqttHelper {
             throw new RuntimeException(e);
         }
     }
+
 
 
 }

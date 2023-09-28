@@ -24,6 +24,7 @@ public class MainActivity extends AppCompatActivity {
 
     private mqttHelper mqttHelper;
 
+    private wsHelper wsHelper;
     private ActivityMainBinding binding;
 
     @Override
@@ -32,12 +33,13 @@ public class MainActivity extends AppCompatActivity {
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        startMqtt();
+        //startMqtt();
+        startWs();
 
         binding.btnSub2temp.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                mqttHelper.subscribeToTemp();
+                wsHelper.subscribeToTemp();
             }
         });
 
@@ -52,7 +54,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 String msg = binding.txtTemp.getText().toString().trim();
-                mqttHelper.publishToTemp(msg);
+                wsHelper.publishToTemp(msg);
             }
         });
 
@@ -86,6 +88,34 @@ public class MainActivity extends AppCompatActivity {
         });
 
     }
+
+    private void startWs(){
+        wsHelper = new wsHelper(getApplicationContext());
+        wsHelper.setCallback(new MqttCallbackExtended() {
+            @Override
+            public void connectComplete(boolean reconnect, String serverURI) {
+
+            }
+
+            @Override
+            public void connectionLost(Throwable cause) {
+
+            }
+
+            @Override
+            public void messageArrived(String topic, MqttMessage message) throws Exception {
+                binding.textView.setText(message.toString());
+                System.out.println("startWs的messageArrived "+message);
+            }
+
+            @Override
+            public void deliveryComplete(IMqttDeliveryToken token) {
+
+            }
+        });
+
+    }
+    
 
 
 }
