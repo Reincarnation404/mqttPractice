@@ -6,20 +6,22 @@ import org.eclipse.paho.android.service.MqttAndroidClient;
 import org.eclipse.paho.client.mqttv3.DisconnectedBufferOptions;
 import org.eclipse.paho.client.mqttv3.IMqttActionListener;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
+import org.eclipse.paho.client.mqttv3.IMqttMessageListener;
 import org.eclipse.paho.client.mqttv3.IMqttToken;
 import org.eclipse.paho.client.mqttv3.MqttCallbackExtended;
 import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.eclipse.paho.client.mqttv3.MqttSecurityException;
 
+import java.security.SecureRandom;
+import java.util.Base64;
+import java.util.Properties;
 
-public class mqttHelper {
-
-    public MqttAndroidClient mqttAndroidClient;
-
-    final String serverUri = "tcp://192.168.100.194:1883";
-
+public class wsHelper {
+    MqttAndroidClient mqttClient;
+    final String serverUri = "ws://192.168.100.139:8080/webSocket";  //
 
     final String clientId = MqttClient.generateClientId();  //不能重複
 
@@ -28,28 +30,30 @@ public class mqttHelper {
     final String username = "username";
     final String password = "password";
 
-    public mqttHelper(Context context) {
-        mqttAndroidClient = new MqttAndroidClient(context, serverUri, clientId);
-                                        //Extension of MqttCallback to allow new callbacks without breaking the API for existing applications.
-        mqttAndroidClient.setCallback(new MqttCallbackExtended() {
+    public wsHelper(Context context) {
+
+        mqttClient = new MqttAndroidClient(context, serverUri, clientId);
+
+        //Extension of MqttCallback to allow new callbacks without breaking the API for existing applications.
+        mqttClient.setCallback(new MqttCallbackExtended() {
 
             //Called when the connection to the server is completed successfully
             @Override
             public void connectComplete(boolean reconnect, String serverURI) {
-                System.out.println("連線成功");
+                System.out.println("ws連線成功");
 
             }
 
             //This method is called when the connection to the server is lost.
             @Override
             public void connectionLost(Throwable cause) {
-                System.out.println("連線lost");
+                System.out.println("ws連線lost");
             }
 
             //This method is called when a message arrives from the server.
             @Override
             public void messageArrived(String topic, MqttMessage message) throws Exception {
-                System.out.println("收到訊息 主題:"+topic+", 內容:"+message);
+                System.out.println("ws收到訊息 主題:"+topic+", 內容:"+message);
             }
 
             //Called when delivery for a message has been completed, and all acknowledgments have been received.
@@ -62,29 +66,40 @@ public class mqttHelper {
         connect();
     }
 
-
     public void setCallback(MqttCallbackExtended mqttCallbackExtended){
-        mqttAndroidClient.setCallback(mqttCallbackExtended);
+        mqttClient.setCallback(mqttCallbackExtended);
     }
 
     public void connect(){
         MqttConnectOptions mqttConnectOptions = new MqttConnectOptions();
+        String key = generateWebSocketKey();
 
         //設定是否自動重連
         mqttConnectOptions.setAutomaticReconnect(true);
         //設定是否清空session(設置為false表示server會保留client的連接記錄)
-        mqttConnectOptions.setCleanSession(false);
-        //server會每隔30s 傳消息給client 判斷是否在線
-        mqttConnectOptions.setKeepAliveInterval(30);
+        mqttConnectOptions.setCleanSession(true);
+        //server會每隔60s 傳消息給client 判斷是否在線
+        mqttConnectOptions.setKeepAliveInterval(60);
         //設定是否重連
         mqttConnectOptions.setAutomaticReconnect(true);
+        mqttConnectOptions.setMqttVersion(MqttConnectOptions.MQTT_VERSION_3_1_1);
         mqttConnectOptions.setUserName(username);
         mqttConnectOptions.setPassword(password.toCharArray());
 
+        Properties p = new Properties();
+        p.setProperty("host", "10.0.2.2:8080");  //模擬器連線server端 10.0.2.2自動轉址
+        p.setProperty("upgrade","websocket");   //
+        p.setProperty("connection","Upgrade");
+        p.setProperty("sec-websocket-key", key);
+        p.setProperty("sec-websocket-version","13");
+        p.setProperty("Sec-WebSocket-Protocol","mqtt");
+
+        mqttConnectOptions.setCustomWebSocketHeaders(p);
+        System.out.println(mqttConnectOptions.getCustomWebSocketHeaders());
 
         try {
 
-            mqttAndroidClient.connect(mqttConnectOptions, null, new IMqttActionListener() {
+            mqttClient.connect(mqttConnectOptions, null, new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
                     DisconnectedBufferOptions disconnectedBufferOptions = new DisconnectedBufferOptions();
@@ -99,62 +114,36 @@ public class mqttHelper {
                     disconnectedBufferOptions.setPersistBuffer(false);
 
                     //設定斷線暫存選項
-                    mqttAndroidClient.setBufferOpts(disconnectedBufferOptions);
+                    mqttClient.setBufferOpts(disconnectedBufferOptions);
 
-                    System.out.println("連線成功");
+                    System.out.println("ws連線成功");
                 }
 
                 @Override
                 public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    System.out.println("連線失敗"+exception);
+                    System.out.println("ws連線失敗"+exception);
                 }
             });
         } catch (MqttException e) {
-            System.out.println("連線出錯:"+e);
+            System.out.println("ws連線出錯:"+e.getMessage());
             throw new RuntimeException(e);
         }
     }
 
+
     /**
-    * 訂閱主題
+     * 訂閱主題
      */
     public void subscribeToTemp() {
         try {
-            mqttAndroidClient.subscribe(topic, 0, null, new IMqttActionListener() {
+            mqttClient.subscribe(topic, 0, new IMqttMessageListener() {
                 @Override
-                public void onSuccess(IMqttToken asyncActionToken) {
-                    System.out.println(topic+"訂閱成功");
-                }
-
-                @Override
-                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    System.out.println(topic+"訂閱失敗"+exception);
+                public void messageArrived(String topic, MqttMessage message) throws Exception {
+                    System.out.println("ws訂閱成功"+message);
                 }
             });
         } catch (MqttException e) {
-            System.out.println(topic+"訂閱出錯:"+e);
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * 取消訂閱主題
-     */
-    public void unsubscribeToTemp(){
-        try {
-            mqttAndroidClient.unsubscribe(topic, null, new IMqttActionListener() {
-                @Override
-                public void onSuccess(IMqttToken asyncActionToken) {
-                    System.out.println(topic+"取消訂閱成功");
-                }
-
-                @Override
-                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    System.out.println(topic+"取消訂閱失敗"+exception);
-                }
-            });
-        } catch (MqttException e) {
-            System.out.println(topic+"取消訂閱出錯:"+e);
+            System.out.println("ws訂閱錯誤"+e);
             throw new RuntimeException(e);
         }
     }
@@ -165,29 +154,27 @@ public class mqttHelper {
      * @param message 訊息內容
      */
     public void publishToTemp(String message){
-       MqttMessage m = new MqttMessage();
-                    //string轉byte[]
-       m.setPayload(message.getBytes());
-       //設定QoS
-       m.setQos(0);
+        MqttMessage m = new MqttMessage();
+        //string轉byte[]
+        m.setPayload(message.getBytes());
+        //設定QoS
+        m.setQos(0);
         try {
-            mqttAndroidClient.publish(topic, m, null, new IMqttActionListener() {
-                @Override
-                public void onSuccess(IMqttToken asyncActionToken) {
-                    System.out.println(topic+"發布成功");
-                }
-
-                @Override
-                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    System.out.println(topic+"發布失敗"+exception);
-                }
-            });
+            mqttClient.publish(topic,m);
         } catch (MqttException e) {
-            System.out.println(topic+"發布出錯"+e);
+            System.out.println("ws發布出錯"+e);
             throw new RuntimeException(e);
         }
     }
 
+    public String generateWebSocketKey() {
+        // 生成随机的 16 字节二进制数据
+        byte[] keyBytes = new byte[16];
+        new SecureRandom().nextBytes(keyBytes);
 
+        // 对二进制数据进行 Base64 编码
+        String base64Key = Base64.getEncoder().encodeToString(keyBytes);
 
+        return base64Key;
+    }
 }
