@@ -88,10 +88,10 @@ public class wsHelper {
 
         Properties p = new Properties();
         p.setProperty("host", "10.0.2.2:8080");  //模擬器連線server端 10.0.2.2自動轉址
-        p.setProperty("upgrade","websocket");   //
-        p.setProperty("connection","Upgrade");
+        p.setProperty("upgrade","websocket");   //升級成websocket協議
+        p.setProperty("connection","Upgrade");  //使用升級後的方式連線
         p.setProperty("sec-websocket-key", key);
-        p.setProperty("sec-websocket-version","13");
+        p.setProperty("sec-websocket-version","13");  //websocket版本
         p.setProperty("Sec-WebSocket-Protocol","mqtt");
 
         mqttConnectOptions.setCustomWebSocketHeaders(p);
